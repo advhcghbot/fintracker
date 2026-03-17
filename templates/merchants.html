@@ -1,0 +1,119 @@
+{% extends "base.html" %}  <!-- assuming you have a base template -->
+
+{% block title %}Merchant Spending Summary{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+  <h2>Merchant Spending Insights</h2>
+  <p class="text-muted">As of {{ now.strftime("%d %b %Y %H:%M") }} • Excludes Bank Transfers</p>
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card text-white bg-primary">
+        <div class="card-body">
+          <h5 class="card-title">Total Spend</h5>
+          <h3>₹ {{ "{:,.2f}".format(grand_total) }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-white bg-info">
+        <div class="card-body">
+          <h5 class="card-title">Merchants Tracked</h5>
+          <h3>{{ total_merchants_shown }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar Chart -->
+  <div class="card mb-4">
+    <div class="card-header">Top {{ chart_limit }} Merchants by Spend</div>
+    <div class="card-body">
+      <canvas id="merchantBarChart" height="400"></canvas>
+    </div>
+  </div>
+
+<!-- Table -->
+<div class="card">
+  <div class="card-header">Merchants (sorted by total spend)</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-striped mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Merchant</th>
+            <th>Category</th>           <!-- ← new -->
+            <th class="text-end">Amount (₹)</th>
+            <th class="text-end">Transactions</th>
+            <th class="text-end">Avg/Tx (₹)</th>
+            <th class="text-end">% of Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in merchants %}
+          <tr>
+            <td>{{ m.merchant }}</td>
+            <td>
+              <span class="badge bg-secondary">{{ m.category }}</span>
+            </td>
+            <td class="text-end">{{ "{:,.2f}".format(m.total_spend) }}</td>
+            <td class="text-end">{{ m.transaction_count }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(m.avg_amount) if m.avg_amount else "—" }}</td>
+            <td class="text-end">{{ m.percentage }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById('merchantBarChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ chart_labels | safe }},
+      datasets: [{
+        label: 'Total Spend (₹)',
+        data: {{ chart_values | safe }},
+        backgroundColor: 'rgba(75, 192, 192, 0.65)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',               // ← makes it horizontal
+      responsive: true,
+      maintainAspectRatio: false,   // important for horizontal
+      scales: {
+        x: { 
+          beginAtZero: true,
+          title: { display: true, text: 'Amount (₹)' }
+        },
+        y: { 
+          title: { display: true, text: 'Merchant' }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return '₹ ' + context.parsed.x.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+
+{% endblock %}

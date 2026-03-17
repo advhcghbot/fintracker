@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}UPI Merchant Mapping{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">UPI Merchant → Category & Frequency Editor</h1>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>UPI ID</th>
+                <th>Merchant Name</th>
+                <th>Category</th>
+                <th>Frequency</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <form method="POST">
+                    <input type="hidden" name="upi_id" value="{{ row.upi_id }}">
+                    <td>{{ row.id }}</td>
+                    <td><code>{{ row.upi_id }}</code></td>
+                    <td>{{ row.merchant_name or '[unknown]' }}</td>
+                    <td>
+                        <select name="category" class="form-select form-select-sm">
+                            {% for cat in categories %}
+                            <option value="{{ cat }}" {% if row.category == cat %}selected{% endif %}>
+                                {{ cat or '— unset —' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="frequency" class="form-select form-select-sm">
+                            {% for freq in frequencies %}
+                            <option value="{{ freq }}" {% if row.frequency == freq %}selected{% endif %}>
+                                {{ freq or '— unset —' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                    </td>
+                </form>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="text-center py-4">No mappings found in table <code>upi_id_mapping</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<p class="mt-4 text-muted small">
+    Connected to: <strong>{{ db_host }} / {{ db_name }}</strong>
+</p>
+
+{% endblock %}

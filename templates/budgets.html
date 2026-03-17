@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Monthly Budgets{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Monthly Budgets by Category</h1>
+
+<!-- Add / Update Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Set or Update Budget</h5>
+        <form method="POST">
+            <input type="hidden" name="action" value="update">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label for="category" class="form-label">Category</label>
+                    <select name="category" id="category" class="form-select" required>
+                        <option value="">— select or type new —</option>
+                        {% for cat in known_categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">Or type a new category name below if not listed</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="monthly_budget" class="form-label">Monthly Budget (₹)</label>
+                    <input type="number" name="monthly_budget" id="monthly_budget" class="form-control" step="0.01" min="0" placeholder="0.00" required>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">Save Budget</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Current Budgets Table -->
+<h3>Current Budgets</h3>
+
+{% if budgets_list %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th class="text-end">Monthly Budget</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in budgets_list %}
+            <tr>
+                <td>{{ b.category }}</td>
+                <td class="text-end">₹ {{ "{:,.2f}".format(b.monthly_budget) }}</td>
+                <td>{{ b.updated_at.strftime('%Y-%m-%d %H:%M') if b.updated_at else '—' }}</td>
+                <td>
+                    <form method="POST" style="display:inline;">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="category" value="{{ b.category }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove budget for {{ b.category }}?');">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-muted">No budgets defined yet.</p>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}MTD Spending Charts{% endblock %}
+
+{% block content %}
+
+<h1 class="mb-4">Month-to-Date Spending Visuals – {{ month_str }}</h1>
+
+<p class="lead mb-4 text-muted">
+    Visual breakdown of spending categories (only categories with transactions or budgets are shown)
+</p>
+
+<div class="row g-4">
+    {% if pie_labels and pie_values %}
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">Spending Distribution (Pie)</h5>
+                <div style="position: relative; height: 400px;">
+                    <canvas id="mtdPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if bar_labels and bar_spend and bar_budget %}
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">Actual Spend vs Budget (Bar)</h5>
+                <div style="position: relative; height: 400px;">
+                    <canvas id="mtdBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Monthly Trend Chart -->
+{% if monthly_trend %}
+<div class="row g-4 mt-5">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Monthly Spending Trend (Last {{ months_back }} months)</h5>
+                <div style="position: relative; height: 400px;">
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ANNUAL BUDGET FORECAST -->
+{% if annual_forecast %}
+<div class="row g-4 mt-5">
+    <!-- Overall Summary Cards -->
+    <div class="col-12">
+        <h5 class="mb-3">Annual Budget Forecast – {{ budget_start_str }} to {{ forecast_end_str }}</h5>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h6 class="text-muted">YTD Spend</h6>
+                        <h4 class="text-primary">₹ {{ "{:,.2f}".format(annual_forecast.total_ytd) }}</h4>
+                        <small class="text-muted">{{ annual_forecast.fraction_passed_pct }}% of year passed</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="text-muted">Projected Full Year</h6>
+                        <h4 class="text-success">₹ {{ "{:,.2f}".format(annual_forecast.total_projected) }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="text-muted">Annual Budget</h6>
+                        <h4>₹ {{ "{:,.2f}".format(annual_forecast.total_annual_budget) }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center {% if annual_forecast.total_variance > 0 %}bg-danger text-white{% else %}bg-success text-white{% endif %}">
+                    <div class="card-body">
+                        <h6 class="text-muted">Forecasted Variance</h6>
+                        <h4>₹ {{ "{:,.2f}".format(annual_forecast.total_variance) }}</h4>
+                        <small>{{ 'Over' if annual_forecast.total_variance > 0 else 'Under' }} budget</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-Category Forecast Table + Chart -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">Category-wise Year-End Projection</h5>
+                <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-end">YTD</th>
+                                <th class="text-end">Projected Year</th>
+                                <th class="text-end">Annual Budget</th>
+                                <th class="text-end">Variance</th>
+                                <th class="text-end">% Burn</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in annual_forecast.rows %}
+                            <tr>
+                                <td>{{ row.category }}</td>
+                                <td class="text-end">₹ {{ "{:,.2f}".format(row.ytd_spend) }}</td>
+                                <td class="text-end fw-bold">₹ {{ "{:,.2f}".format(row.projected_annual) }}</td>
+                                <td class="text-end">₹ {{ "{:,.2f}".format(row.annual_budget) }}</td>
+                                <td class="text-end {% if row.variance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                    ₹ {{ "{:,.2f}".format(row.variance) }}
+                                </td>
+                                <td class="text-end">{{ row.utilization }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">Projected vs Budget (Top Categories)</h5>
+                <div style="position: relative; height: 380px;">
+                    <canvas id="annualForecastChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if not (pie_labels or bar_labels) %}
+<div class="alert alert-info mt-4">
+    No chart data available yet (no spending or budgets this month).
+</div>
+{% endif %}
+
+<!-- ── Chart.js logic (almost same as before) ─────────────────────────────── -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const fmt = (v) => '₹ ' + v.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    const chartColors = [
+        '#36A2EB', '#FF6384', '#4BC0C0', '#FFCE56', '#9966FF', '#FF9F40',
+        '#C9CBCF', '#8BC34A', '#E91E63', '#9C27B0', '#F06292', '#7986CB',
+        '#4DB6AC', '#FFB74D', '#9575CD'
+    ];
+
+    // Pie Chart
+    {% if pie_labels and pie_values %}
+    const pieEl = document.getElementById('mtdPieChart');
+    if (pieEl) {
+        new Chart(pieEl, {
+            type: 'pie',
+            data: {
+                labels: {{ pie_labels | tojson }},
+                datasets: [{
+                    data: {{ pie_values | tojson }},
+                    backgroundColor: chartColors,
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 14, padding: 16 } },
+                    tooltip: { callbacks: { label: ctx => fmt(ctx.raw) } }
+                },
+                animation: { duration: 1400 }
+            }
+        });
+    }
+    {% endif %}
+
+    // Bar Chart
+    {% if bar_labels and bar_spend and bar_budget %}
+    const barEl = document.getElementById('mtdBarChart');
+    if (barEl) {
+        new Chart(barEl, {
+            type: 'bar',
+            data: {
+                labels: {{ bar_labels | tojson }},
+                datasets: [
+                    {
+                        label: 'Actual Spend',
+                        data: {{ bar_spend | tojson }},
+                        backgroundColor: 'rgba(54, 162, 235, 0.80)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Monthly Budget',
+                        data: {{ bar_budget | tojson }},
+                        backgroundColor: 'rgba(40, 167, 69, 0.60)',
+                        borderColor: 'rgba(40, 167, 69, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => '₹' + v.toLocaleString('en-IN') }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: { label: ctx => `${ctx.dataset.label}: ${fmt(ctx.raw)}` }
+                    }
+                },
+                animation: { duration: 1200 }
+            }
+        });
+    }
+    {% endif %}
+
+    // ── Monthly Trend Chart ────────────────────────────────────────────────
+{% if monthly_trend %}
+const trendEl = document.getElementById('monthlyTrendChart');
+if (trendEl) {
+    const months = {{ monthly_trend | map(attribute='month') | list | tojson }};
+    const totals = {{ monthly_trend | map(attribute='total') | list | tojson }};
+
+    new Chart(trendEl, {
+        type: 'bar',   // or 'line' if you prefer smoother trend
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Monthly Spend',
+                data: totals,
+                backgroundColor: 'rgba(75, 192, 192, 0.65)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: v => '₹' + v.toLocaleString('en-IN') }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => '₹ ' + ctx.raw.toLocaleString('en-IN', {minimumFractionDigits: 2})
+                    }
+                }
+            },
+            animation: { duration: 1200 }
+        }
+    });
+}
+{% endif %}
+
+// ── Annual Forecast Bar Chart ─────────────────────────────────────────────
+{% if annual_forecast and annual_forecast.rows %}
+const forecastEl = document.getElementById('annualForecastChart');
+if (forecastEl) {
+    const cats = {{ annual_forecast.rows[:8] | map(attribute='category') | list | tojson }};
+    const projected = {{ annual_forecast.rows[:8] | map(attribute='projected_annual') | list | tojson }};
+    const budgets   = {{ annual_forecast.rows[:8] | map(attribute='annual_budget') | list | tojson }};
+
+    new Chart(forecastEl, {
+        type: 'bar',
+        data: {
+            labels: cats,
+            datasets: [
+                {
+                    label: 'Projected Year-End',
+                    data: projected,
+                    backgroundColor: 'rgba(255, 99, 132, 0.75)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Annual Budget',
+                    data: budgets,
+                    backgroundColor: 'rgba(40, 167, 69, 0.55)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, ticks: { callback: v => '₹' + v.toLocaleString('en-IN') } }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ₹${ctx.raw.toLocaleString('en-IN', {minimumFractionDigits:2})}` } }
+            }
+        }
+    });
+}
+{% endif %}
+
+});
+</script>
+
+{% endblock %}
